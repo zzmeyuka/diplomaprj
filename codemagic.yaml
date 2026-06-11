@@ -9,12 +9,17 @@ workflows:
     triggering:
       events:
         - push
+      branch_patterns:
+        - pattern: 'master'
+          include: true
     scripts:
       - name: Get Flutter packages
         script: |
+          cd mobile
           flutter pub get
       - name: Build iOS Simulator App
         script: |
+          cd mobile
           flutter build ios --simulator --release
     artifacts:
-      - build/ios/iphonesimulator/*.app
+      - mobile/build/ios/iphonesimulator/*.app
