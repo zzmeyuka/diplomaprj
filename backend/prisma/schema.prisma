@@ -1,0 +1,247 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String   @id @default(uuid())
+  fullName          String
+  email             String   @unique
+  passwordHash      String
+  phoneNumber       String?
+  preferredLanguage String   @default("ru")
+  role              String   @default("user")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  favorites            Favorite[]
+  searchHistories      SearchHistory[]
+  bookings             Booking[]
+  routePreferences     UserRoutePreference[]
+  recommendations      Recommendation[]
+  chatSessions         ChatSession[]
+  adminLogs            AdminLog[]            @relation("AdminUser")
+}
+
+model Country {
+  id     Int    @id @default(autoincrement())
+  nameEn String
+  nameRu String
+  code   String @unique
+  cities City[]
+}
+
+model City {
+  id          Int    @id @default(autoincrement())
+  countryId   Int
+  country     Country @relation(fields: [countryId], references: [id])
+  nameEn      String
+  nameRu      String
+  cityType    String @default("regular")
+  originRoutes      Route[] @relation("OriginCity")
+  destinationRoutes Route[] @relation("DestinationCity")
+
+  @@index([nameEn])
+}
+
+model Route {
+  id                Int      @id @default(autoincrement())
+  originCityId      Int
+  destinationCityId Int
+  routeType         String
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+
+  originCity      City         @relation("OriginCity", fields: [originCityId], references: [id])
+  destinationCity City         @relation("DestinationCity", fields: [destinationCityId], references: [id])
+  flightOffers    FlightOffer[]
+  searchHistories SearchHistory[]
+  routePreferences UserRoutePreference[]
+
+  @@unique([originCityId, destinationCityId])
+}
+
+model Aggregator {
+  id          Int     @id @default(autoincrement())
+  name        String  @unique
+  website     String?
+  description String?
+  isActive    Boolean @default(true)
+  flightOffers FlightOffer[]
+}
+
+model FlightOffer {
+  id              String   @id @default(uuid())
+  routeId         Int
+  aggregatorId    Int
+  flightCode      String
+  departureAt     DateTime
+  arrivalAt       DateTime
+  durationMinutes Int
+  cabinClass      String
+  basePrice       Decimal  @db.Decimal(12, 2)
+  discountPercent Int      @default(0)
+  finalPrice      Decimal  @db.Decimal(12, 2)
+  currency        String   @default("KZT")
+  seatsLeft       Int
+  baggageIncluded Boolean
+  refundable      Boolean
+  transferType    String
+  status          String   @default("available")
+  createdAt       DateTime @default(now())
+
+  route       Route        @relation(fields: [routeId], references: [id])
+  aggregator  Aggregator   @relation(fields: [aggregatorId], references: [id])
+  favorites   Favorite[]
+  bookings    Booking[]
+  recommendations Recommendation[]
+
+  @@unique([routeId, aggregatorId, flightCode, departureAt, cabinClass])
+  @@index([routeId, departureAt, cabinClass, status])
+  @@index([departureAt])
+}
+
+model Favorite {
+  id            String   @id @default(uuid())
+  userId        String
+  flightOfferId String
+  createdAt     DateTime @default(now())
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  flightOffer FlightOffer @relation(fields: [flightOfferId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, flightOfferId])
+}
+
+model SearchHistory {
+  id            String   @id @default(uuid())
+  userId        String
+  routeId       Int?
+  originCity    String
+  destinationCity String
+  searchDate    DateTime
+  cabinClass    String
+  passengers    Int
+  createdAt     DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  route Route? @relation(fields: [routeId], references: [id])
+}
+
+model Booking {
+  id              String   @id @default(uuid())
+  userId          String
+  flightOfferId   String
+  passengersCount Int      @default(1)
+  totalPrice      Decimal  @db.Decimal(12, 2)
+  bookingStatus   String   @default("confirmed")
+  currency        String   @default("KZT")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  flightOffer FlightOffer @relation(fields: [flightOfferId], references: [id])
+  passengers  Passenger[]
+  payments    Payment[]
+}
+
+model Passenger {
+  id          String  @id @default(uuid())
+  bookingId   String
+  fullName    String
+  documentId  String?
+  birthDate   DateTime?
+  createdAt   DateTime @default(now())
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+}
+
+model Payment {
+  id                     String   @id @default(uuid())
+  bookingId              String
+  amount                 Decimal  @db.Decimal(12, 2)
+  currency               String   @default("KZT")
+  paymentStatus          String   @default("pending")
+  paymentRedirectProvider String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+}
+
+model UserRoutePreference {
+  id                String @id @default(uuid())
+  userId            String
+  routeId           Int
+  originCityId      Int
+  destinationCityId Int
+  searchCount       Int    @default(0)
+  favoriteCount     Int    @default(0)
+  bookingCount      Int    @default(0)
+  interestScore     Int    @default(0)
+  updatedAt         DateTime @updatedAt
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  route Route @relation(fields: [routeId], references: [id])
+
+  @@unique([userId, routeId])
+}
+
+model Recommendation {
+  id            String   @id @default(uuid())
+  userId        String
+  flightOfferId String
+  score         Int
+  reason        String?
+  createdAt     DateTime @default(now())
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  flightOffer FlightOffer @relation(fields: [flightOfferId], references: [id])
+}
+
+model ChatSession {
+  id        String   @id @default(uuid())
+  userId    String
+  title     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages ChatMessage[]
+}
+
+model ChatMessage {
+  id        String   @id @default(uuid())
+  sessionId String
+  role      String
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+
+  session ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+}
+
+model FaqArticle {
+  id        Int      @id @default(autoincrement())
+  questionRu String
+  answerRu   String   @db.Text
+  category  String?
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model AdminLog {
+  id        String   @id @default(uuid())
+  adminId   String
+  action    String
+  entity    String?
+  entityId  String?
+  details   String?  @db.Text
+  createdAt DateTime @default(now())
+
+  admin User @relation("AdminUser", fields: [adminId], references: [id])
+}
