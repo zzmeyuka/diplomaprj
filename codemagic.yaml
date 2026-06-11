@@ -9,8 +9,6 @@ workflows:
     triggering:
       events:
         - push
-      watched_branches:
-        - master
     scripts:
       - name: Get Flutter packages
         script: |
